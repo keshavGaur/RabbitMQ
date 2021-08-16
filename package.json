@@ -1,7 +1,7 @@
 {
-  "name": "rabbit_mq",
+  "name": "rabbit_mq_jobhai",
   "version": "1.0.0",
-  "description": "",
+  "description": "contains rabbit mq consumers",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -12,6 +12,11 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "amqplib": "^0.8.0"
+    "amqplib": "^0.8.0",
+    "config": "^3.3.6",
+    "dotenv": "^10.0.0",
+    "ioredis": "^4.27.7",
+    "mysql2": "^2.3.0",
+    "redis": "^3.1.2"
   }
 }
