@@ -1,5 +1,5 @@
 const liveJobConsumer = require('./liveJobConsumer');
 
-module.export = {
+module.exports = {
     liveJobConsumer,
 }
