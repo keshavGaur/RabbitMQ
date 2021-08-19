@@ -48,6 +48,7 @@ function sendMsgToRetry(args) {
         return channel.publish('TTL-job_exchange', routingKey, content, options);
     } else {
         logger.error('attempt is greater than MAX_RETRIES, jobId - ');
+        // todo
         //enter into lazy queue or something
     }
 }
