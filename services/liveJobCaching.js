@@ -2,7 +2,6 @@ const moment = require('moment');
 const { mysql, redis } = require('./../db');
 const logger = require('./../logger');
 const connection = mysql.connectionPromise;
-const redisClient = redis.getIoRedisClient();
 const HASH = `JOB_LISTING_PREVIEW`;
 
 const LiveJobsColumns = [
@@ -61,23 +60,25 @@ const getDataFromMySQL = async function (job_ids) {
 }
 
 const setData = async function (job_ids) {
-    const data = await getDataFromMySQL(job_ids);
+    let data = await getDataFromMySQL(job_ids);
+    data = data[0];
     let cache = {}
     for (let key in data) {
         cache[data[key]['job_id']] = JSON.stringify(data[key]);
     }
+    const redisClient = await redis.getIoRedisClient();
     await redisClient.hmset(HASH, cache);
 
     return data;
 }
 
 const deleteData = async function (job_ids) {
+    const redisClient = await redis.getIoRedisClient();
     return Promise.all(job_ids.map(async id => await redisClient.hdel(HASH, id)))
 }
 
 const updateJob = async function (job_id) {
     try {
-        let success = false;
         const current_gmt_time = moment().add((new Date()).getTimezoneOffset(), 'm').format('YYYY-MM-DD HH:mm:ss');
         const query = `SELECT 
                         ${[...LiveJobsColumns, ...LiveJob_Description_Columns].join(" , ")}
@@ -86,13 +87,14 @@ const updateJob = async function (job_id) {
                         LEFT JOIN 
                         Job_Reaches jr on j.job_id = jr.job_id
                     WHERE
-                        j.job_id IN (:job_id) 
+                        j.job_id IN (?) 
                         AND j.job_status = 'ENABLED'
                         AND j.crm_qa_status = 'GO_LIVE'
                         AND j.hiring_end_date > '${current_gmt_time}'`;
 
-        const [job] = await connection.query(query, [job_id]);
+        let [job] = await connection.query(query, [job_id]);
         const values = [];
+        job = job[0];
 
         if (job) {
             // Live job upsert query
@@ -154,15 +156,11 @@ const updateJob = async function (job_id) {
             // delete data from redis
             await deleteData([job_id])
         }
-
-        success = true;
     } catch (error) {
         // republish message to queue
-        console.log(error);
-        logger.error(error);
+        logger.error(`jobId - ${job_id}`, error);
+        throw error;
     }
-
-    return success;
 }
 
 module.exports = {

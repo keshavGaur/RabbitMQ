@@ -4,14 +4,25 @@
 */
 
 const amqp = require('amqplib');
+const logger = require('./../logger');
 const service = require('./../services/liveJobCaching');
-const contentEncoding = 'utf8';
-const contentTypeJson = 'application/json';
+const helper = require('./../helpers/retryHelper');
+const MAX_RETRIES = 3;
 
-function handler() {
-    return Math.random() > 0.5 ? Promise.resolve() : Promise.reject()
+/**
+ * resends msg to ttl queues for retry
+ * @param {*} reasonOfFail 
+ * @returns 
+*/
+function handleRejectedMsg(reasonOfFail, msg, channel) {
+    return sendMsgToRetry({ msg, queue: 'job_exchange_queue', channel, reasonOfFail });
 }
 
+/**
+ * publishes msg to ttl queue
+ * @param {Object} args - message arguments
+ * @returns 
+*/
 function sendMsgToRetry(args) {
     const channel = args.channel;
     const queue = args.queue;
@@ -20,23 +31,13 @@ function sendMsgToRetry(args) {
     // ack original msg
     channel.ack(msg);
 
-    // Unpack content, update and pack it back
-    function getAttemptAndUpdatedContent(msg) {
-        let content = JSON.parse(msg.content.toString(contentEncoding));
-        content[0].try_attempt = ++content[0].try_attempt || 1;
-        const attempt = content[0].try_attempt;
-        content = Buffer.from(JSON.stringify(content), contentEncoding);
+    const { attempt, content } = helper.getAttemptAndUpdatedContent(msg);
 
-        return { attempt, content };
-    }
-
-    const { attempt, content } = getAttemptAndUpdatedContent(msg);
-
-    if (attempt <= 3) {
+    if (attempt <= MAX_RETRIES) {
         const routingKey = `retry-${attempt}`;
         const options = {
-            contentEncoding,
-            contentType: contentTypeJson,
+            contentEncoding: 'utf8',
+            contentType: 'application/json',
             persistent: true,
         };
 
@@ -45,9 +46,10 @@ function sendMsgToRetry(args) {
         });
 
         return channel.publish('TTL-job_exchange', routingKey, content, options);
+    } else {
+        logger.error('attempt is greater than MAX_RETRIES, jobId - ');
+        //enter into lazy queue or something
     }
-
-    return Promise.resolve();
 }
 
 const connect = async () => {
@@ -61,30 +63,27 @@ const connect = async () => {
         const bindings = await bindExchangesToQueues(channel);
 
         channel.consume('job_exchange_queue', msg => {
-            console.log(JSON.parse(msg.content.toString()));
+            const data = JSON.parse(msg.content.toString());
+            const jobId = data && data[0] && data[0].jobId || 0;
 
-            return (new Promise(async (resolve, reject) => {
-                if (msg.fields.redelivered) {
-                    reject('Message was redelivered, so something wrong happened');
-                    return;
-                }
-
-                try {
-                    await handler(msg, channel)
-                    resolve();
-                } catch (ex) {
-                    reject();
-                }
-            })).then(() => {
-                channel.ack(msg);
-            }).catch(handleRejectedMsg);
-
-            function handleRejectedMsg(reasonOfFail) {
-                return sendMsgToRetry({ msg, queue: 'job_exchange_queue', channel, reasonOfFail });
+            if (jobId > 0) {
+                return (new Promise(async (resolve, reject) => {
+                    try {
+                        await service.updateJob(jobId);
+                        resolve();
+                    } catch (ex) {
+                        reject(ex);
+                    }
+                })).then(() => {
+                    channel.ack(msg);
+                }).catch((e) => {
+                    logger.error(e);
+                    handleRejectedMsg(e, msg, channel);
+                });
             }
         });
     } catch (ex) {
-        console.log(ex);
+        logger.error(ex);
     }
 
 }
