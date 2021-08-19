@@ -67,19 +67,15 @@ const connect = async () => {
             const jobId = data && data[0] && data[0].jobId || 0;
 
             if (jobId > 0) {
-                return (new Promise(async (resolve, reject) => {
-                    try {
-                        await service.updateJob(jobId);
-                        resolve();
-                    } catch (ex) {
-                        reject(ex);
-                    }
-                })).then(() => {
+                try {
+                    await service.updateJob(jobId);
                     channel.ack(msg);
-                }).catch((e) => {
+                } catch (e) {
                     logger.error(e);
                     handleRejectedMsg(e, msg, channel);
-                });
+                }
+            } else {
+                logger.error(`jobId-${jobId}, jobId should be greater than 0`);
             }
         });
     } catch (ex) {
