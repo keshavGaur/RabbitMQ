@@ -1,5 +1,6 @@
 const moment = require('moment');
 const { mysql, redis } = require('./../db');
+const logger = require('./../logger');
 const connection = mysql.connectionPromise;
 const redisClient = redis.getIoRedisClient();
 const HASH = `JOB_LISTING_PREVIEW`;
@@ -41,7 +42,10 @@ const LiveJobsColumns = [
     'regional_languages',
 ];
 
-const LiveJob_Description_Columns = ['j.job_id', 'job_description',];
+const LiveJob_Description_Columns = [
+    'j.job_id',
+    'job_description',
+];
 
 const getDataFromMySQL = async function (job_ids) {
     const query = `SELECT 
@@ -155,6 +159,7 @@ const updateJob = async function (job_id) {
     } catch (error) {
         // republish message to queue
         console.log(error);
+        logger.error(error);
     }
 
     return success;

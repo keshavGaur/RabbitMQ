@@ -1,12 +1,10 @@
 // API server default configuration
 // Sensitive information will be read from process
 
-
 module.exports = {
     logger: {
-        app: {
-            level: process.env.LOG_LEVEL || 'debug',
-            logDestination: 'stdout',
-        },
+        logLevel: process.env.LOG_LEVEL || 'info',
+        accessLogsRedirectToStdout: false,
+        apiLogsRedirectToStdout: false,
     },
 };

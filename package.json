@@ -13,6 +13,7 @@
   "license": "ISC",
   "dependencies": {
     "amqplib": "^0.8.0",
+    "bunyan": "^1.8.15",
     "config": "^3.3.6",
     "dotenv": "^10.0.0",
     "ioredis": "^4.27.7",

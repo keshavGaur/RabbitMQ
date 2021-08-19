@@ -2,7 +2,11 @@
 // Sensitive information will be read from process
 
 const defer = require('config/defer').deferConfig;
-const p = require('./../package.json');
+const path = require('path');
+const p = require('../package.json');
+
+const logDir = process.env.LOG_DIR || './logs';
+const apiLogFileName = process.env.API_LOG_FILE_NAME || 'api.log';
 
 module.exports = {
     app: {
@@ -31,16 +35,17 @@ module.exports = {
         }
     },
     logger: {
-        app: {
-            silent: process.env.ENABLE_APP_LOGS === '0',
-            level: process.env.LOG_LEVEL || 'debug',
-            logDestination: appLogDestination,
-            fileParams: {
-                fileName: apiLogFileName,
-                fileRotation: true,
-                interval: '1d',
-                maxFiles: 10,
-            },
+        logDir,
+        disableApiLogs: process.env.DISABLE_API_LOGS === '1',
+        logLevel: process.env.LOG_LEVEL || 'info',
+        apiLogFileName,
+        apiLogsRedirectToStdout: process.env.API_LOGS_REDIRECT_TO_STDOUT === '1',
+        bunyan: {
+            name: p.name,
+            type: 'rotating-file',
+            path: path.resolve(logDir, apiLogFileName), // log to a file
+            period: '1d', // daily rotation
+            count: 10,
         },
     },
 };
