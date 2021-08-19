@@ -1,15 +1,10 @@
 const bunyan = require('bunyan'); // Logging module
 const fs = require('fs');
 
-require("dotenv").config();
-const env = process.env.NODE_ENV || 'development';
-const config = require(__dirname + '/../config/config.js')[env];
-const logConf = config.logger;
+const logConf = require('config').get('logger');
 const { BunyanStreamInterceptor } = require('../helpers/interceptors');
 
 const appLogConf = logConf.bunyan;
-
-const loggerSession = createNamespace(appLogConf.name);
 
 const { logDir } = logConf;
 

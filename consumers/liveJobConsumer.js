@@ -23,8 +23,8 @@ function sendMsgToRetry(args) {
     // Unpack content, update and pack it back
     function getAttemptAndUpdatedContent(msg) {
         let content = JSON.parse(msg.content.toString(contentEncoding));
-        content.try_attempt = ++content.try_attempt || 1;
-        const attempt = content.try_attempt;
+        content[0].try_attempt = ++content[0].try_attempt || 1;
+        const attempt = content[0].try_attempt;
         content = Buffer.from(JSON.stringify(content), contentEncoding);
 
         return { attempt, content };
@@ -93,7 +93,7 @@ function assertExchanges(channel) {
     return Promise.all([]
         .concat(channel.assertExchange('job_exchange', 'direct', { durable: true }))
         .concat(channel.assertExchange('TTL-job_exchange', 'direct', { durable: true }))
-        .concat(channel.assertExchange('DLX-job_exchange', 'direct', { durable: true }))
+        .concat(channel.assertExchange('DLX-job_exchange', 'fanout', { durable: true }))
     );
 }
 
@@ -102,8 +102,8 @@ function assertQueues(channel) {
         .concat(channel.assertQueue('job_exchange_queue', { durable: true }))
         .concat([
             channel.assertQueue('job_exchange-retry-1-30s', { durable: true, deadLetterExchange: 'DLX-job_exchange', messageTtl: 30000 }),
-            channel.assertQueue('job_exchange-retry-2-10m', { durable: true, deadLetterExchange: 'DLX-job_exchange', messageTtl: 600000 }),
-            channel.assertQueue('job_exchange-retry-3-20m', { durable: true, deadLetterExchange: 'DLX-job_exchange', messageTtl: 1200000 }),
+            channel.assertQueue('job_exchange-retry-2-60s', { durable: true, deadLetterExchange: 'DLX-job_exchange', messageTtl: 60000 }),
+            channel.assertQueue('job_exchange-retry-3-120s', { durable: true, deadLetterExchange: 'DLX-job_exchange', messageTtl: 120000 }),
         ])
     );
 }
@@ -111,18 +111,13 @@ function assertQueues(channel) {
 function bindExchangesToQueues(channel) {
     return Promise.all([]
         .concat(channel.bindQueue('job_exchange_queue', 'job_exchange', 'job_exchange'))
-        .concat(channel.bindQueue('job_exchange_queue', 'DLX-job_exchange', 'DLX-job_exchange'))
+        .concat(channel.bindQueue('job_exchange_queue', 'DLX-job_exchange'))
         .concat(
             channel.bindQueue('job_exchange-retry-1-30s', 'TTL-job_exchange', 'retry-1'),
-            channel.bindQueue('job_exchange-retry-2-10m', 'TTL-job_exchange', 'retry-2'),
-            channel.bindQueue('job_exchange-retry-3-20m', 'TTL-job_exchange', 'retry-3')
+            channel.bindQueue('job_exchange-retry-2-60s', 'TTL-job_exchange', 'retry-2'),
+            channel.bindQueue('job_exchange-retry-3-120s', 'TTL-job_exchange', 'retry-3')
         )
     );
-
-    // channel.consume(q.queue, function (msg) {
-    //     console.log(" [x] %s: '%s'", msg.fields.routingKey, msg.content.toString());
-    //     channel.ack(msg);
-    // });
 }
 
 module.exports = {
